@@ -116,6 +116,16 @@ records = listDNSRecords(_api_token, _zone_id)
 for rec in records:
     print(rec)
 
+if external_ip != _last_ip:
+    # Do the work here
+    # Iterate over DNS records and
+    # if they are the old IP 
+    # OR they are NOT the new IP 
+    # then update them!
+    print("IP changed!")
+
+    # Also log any changes to IP into a separate log file
+
 config[_config_section]["last_ip"] = external_ip
 config[_config_section]["timestamp"] = _timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
