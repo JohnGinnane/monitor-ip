@@ -9,7 +9,7 @@ If the file does not exist then it will be created automatically when running th
 ### Config file layout
 ```
 [MONITOR-IP]
-last_ip = Populated by program with external IP that was fetched when run
+ip = Populated by program with external IP that was fetched when run
 timestamp = Contains timestamp of last execution, in the format yyyy/MM/dd hh:mm:ss
 
 [CLOUDFLARE]
