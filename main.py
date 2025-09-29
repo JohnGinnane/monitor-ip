@@ -19,27 +19,27 @@ def Cloudflare_ListDNSRecords(api_token, zone_id):
     json_response = response.json()
 
     result = []
-    for res in json_response["result"]:
-        if res["type"] != "A":
+    for res in json_response['result']:
+        if res['type'] != "A":
             continue
 
         result.append({
-            "id": res["id"],
-            "type": res["type"],
-            "name": res["name"],
-            "content": res["content"]
+            "id": res['id'],
+            "type": res['type'],
+            "name": res['name'],
+            "content": res['content']
         })
 
     return result
 
 def Cloudflare_UpdateDNSRecord(api_token, zone_id, record, new_ip):
-    print(f"Updating DNS {record["name"]}: {record["content"]} -> {new_ip}")
+    print(f"Updating DNS {record['name']}: {record['content']} -> {new_ip}")
 
-    url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record["id"]}"
+    url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record['id']}"
     new_data = {
-        "name": record["name"],
-        "ttl": 1 if not "ttl" in record else record["ttl"],
-        "type": record["type"],
+        "name": record['name'],
+        "ttl": 1 if not "ttl" in record else record['ttl'],
+        "type": record['type'],
         "content": new_ip
         }
     
@@ -49,14 +49,14 @@ def Cloudflare_UpdateDNSRecord(api_token, zone_id, record, new_ip):
     
     json_response = json.loads(response.content)
     
-    if json_response["success"]:
+    if json_response['success']:
         print("Done")
     else:
-        print(f"An error occured updating {record["id"]}:")
+        print(f"An error occured updating {record['id']}:")
 
         if "errors" in json_response:
-            for err in json_response["errors"]:
-                print(f"Code: {err["code"]}. Message: {err["message"]}")
+            for err in json_response['errors']:
+                print(f"Code: {err['code']}. Message: {err['message']}")
 
 def getExternalIP():
     return requests.get('https://api.ipify.org').content.decode('utf8')
@@ -104,23 +104,23 @@ config.read(_config_file_path)
 # File and section exists
 # Make sure each key exists
 if not "ip" in config[_config_section]:
-    config[_config_section]["ip"] = ""
+    config[_config_section]['ip'] = ""
 else:
-    _last_ip = config[_config_section]["ip"]
+    _last_ip = config[_config_section]['ip']
 
 if not "timestamp" in config[_config_section]:
-    config[_config_section]["timestamp"] = ""
+    config[_config_section]['timestamp'] = ""
 else:
-    if config[_config_section]["timestamp"] != "":
+    if config[_config_section]['timestamp'] != "":
         try:
-            _timestamp = datetime.strptime(config[_config_section]["timestamp"], "%Y-%m-%d %H:%M:%S")
+            _timestamp = datetime.strptime(config[_config_section]['timestamp'], "%Y-%m-%d %H:%M:%S")
         finally:
             _timestamp = datetime.now()
 
 # Cloudflare support
 if _cloudflare_section in config:
-    _cloudflare_zone_id = "" if not "zone_id" in config[_cloudflare_section] else config[_cloudflare_section]["zone_id"]
-    _cloudflare_api_token = "" if not "api_token" in config[_cloudflare_section] else config[_cloudflare_section]["api_token"]
+    _cloudflare_zone_id = "" if not "zone_id" in config[_cloudflare_section] else config[_cloudflare_section]['zone_id']
+    _cloudflare_api_token = "" if not "api_token" in config[_cloudflare_section] else config[_cloudflare_section]['api_token']
 
 external_ip = getExternalIP()
 
@@ -138,7 +138,7 @@ if external_ip != _last_ip and external_ip != "":
 
         # Iterate over each one and ignore 192.168.0.0/16
         for dns_record in records:
-            if dns_record["content"][:8] == "192.168.":
+            if dns_record['content'][:8] == "192.168.":
                 continue
             
             # Update each DNS record only if the IP for the
@@ -147,14 +147,14 @@ if external_ip != _last_ip and external_ip != "":
 
             # This prevents unnecesary updates to DNS if it
             # was already updated to new IP
-            if (dns_record["content"] == _last_ip or _last_ip == "") and dns_record["content"] != external_ip:
+            if (dns_record['content'] == _last_ip or _last_ip == "") and dns_record['content'] != external_ip:
                 Cloudflare_UpdateDNSRecord(_cloudflare_api_token, _cloudflare_zone_id, dns_record, external_ip)
 
         print("All Cloudflare DNS records up to date!")
 
 # Log the time we completed this task
-config[_config_section]["ip"] = external_ip
-config[_config_section]["timestamp"] = _timestamp.strftime("%Y-%m-%d %H:%M:%S")
+config[_config_section]['ip'] = external_ip
+config[_config_section]['timestamp'] = _timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
 with open(_config_file_path, "w") as config_file:
     config.write(config_file)
