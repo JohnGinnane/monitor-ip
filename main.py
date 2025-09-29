@@ -67,7 +67,7 @@ def logNewIP(ip):
             log_file.write(f"timestamp,ip\n")
     
     with open(_log_file_path, "a") as log_file:
-        log_file.write(f"{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, {ip}\n")
+        log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, {ip}\n")
 
 _last_ip = ""
 _timestamp = datetime.now()
