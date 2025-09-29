@@ -5,12 +5,14 @@ from datetime import datetime
 import json
 
 _config_file_path = "config.ini"
-_config_section = "IP-MONITOR"
+_config_section = "MONITOR-IP"
 _log_file_path = "ip-log.txt"
 
 _cloudflare_section = "CLOUDFLARE"
+_cloudflare_zone_id = ""
+_cloudflare_api_token = ""
 
-def listDNSRecords(api_token, zone_id):
+def Cloudflare_ListDNSRecords(api_token, zone_id):
     url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records"
     response = requests.get(url, headers={"Authorization": api_token})
 
@@ -30,7 +32,7 @@ def listDNSRecords(api_token, zone_id):
 
     return result
 
-def updateDNSRecord(api_token, zone_id, record, new_ip):
+def Cloudflare_UpdateDNSRecord(api_token, zone_id, record, new_ip):
     print(f"Updating DNS {record["name"]}: {record["content"]} -> {new_ip}")
 
     url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record["id"]}"
@@ -48,7 +50,7 @@ def updateDNSRecord(api_token, zone_id, record, new_ip):
     json_response = json.loads(response.content)
     
     if json_response["success"]:
-        print("Done!")
+        print("Done")
     else:
         print(f"An error occured updating {record["id"]}:")
 
@@ -67,103 +69,91 @@ def logNewIP(ip):
     with open(_log_file_path, "a") as log_file:
         log_file.write(f"{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, {ip}\n")
 
-_zone_id = ""
-_api_token = ""
 _last_ip = ""
 _timestamp = datetime.now()
 
 # Look for config file
-# 1. If not there then create
-# 2. If present and ill-defined
-#    then populate with empty keys
-# 3. Read values from config file
-
 config = configparser.ConfigParser()
 
+# 1. If not there then create
 if not os.path.isfile(_config_file_path):
     config[_config_section] = {
-        "zone_id": "",
-        "api_token": "",
-        "last_ip": "",
+        "ip": "",
         "timestamp": ""
     }
 
     with open(_config_file_path, "w") as config_file:
         config.write(config_file)
-else:
-    # Check the existing file
-    config.read(_config_file_path)
 
+config.read(_config_file_path)
+
+# 2. If present and ill-defined
+#    then populate with empty keys
 if not _config_section in config.sections():
     config[_config_section] = {
-        "zone_id": "",
-        "api_token": "",
-        "last_ip": "",
+        "ip": "",
         "timestamp": ""
     }
 
     with open(_config_file_path, "w") as config_file:
         config.write(config_file)
+
+# 3. Read values from config file
+config.read(_config_file_path)
+
+# File and section exists
+# Make sure each key exists
+if not "ip" in config[_config_section]:
+    config[_config_section]["ip"] = ""
 else:
-    # File and section exists
-    # Make sure each key exists
-    if not "zone_id" in config[_config_section]:
-        config[_config_section]["zone_id"] = ""
-    else:
-        _zone_id = config[_config_section]["zone_id"]
+    _last_ip = config[_config_section]["ip"]
 
-    if not "api_token" in config[_config_section]:
-        config[_config_section]["api_token"] = ""
-    else:
-        _api_token = config[_config_section]["api_token"]
+if not "timestamp" in config[_config_section]:
+    config[_config_section]["timestamp"] = ""
+else:
+    if config[_config_section]["timestamp"] != "":
+        try:
+            _timestamp = datetime.strptime(config[_config_section]["timestamp"], "%Y-%m-%d %H:%M:%S")
+        finally:
+            _timestamp = datetime.now()
 
-    if not "last_ip" in config[_config_section]:
-        config[_config_section]["last_ip"] = ""
-    else:
-        _last_ip = config[_config_section]["last_ip"]
-
-    if not "timestamp" in config[_config_section]:
-        config[_config_section]["timestamp"] = ""
-    else:
-        if config[_config_section]["timestamp"] != "":
-            try:
-                _timestamp = datetime.strptime(config[_config_section]["timestamp"], "%Y-%m-%d %H:%M:%S")
-            finally:
-                _timestamp = datetime.now()
-
-if _zone_id == "":
-    print("No zone ID specified!")
-    exit()
-
-if _api_token == "":
-    print("No API token specified!")
-    exit()
+# Cloudflare support
+if _cloudflare_section in config:
+    _cloudflare_zone_id = "" if not "zone_id" in config[_cloudflare_section] else config[_cloudflare_section]["zone_id"]
+    _cloudflare_api_token = "" if not "api_token" in config[_cloudflare_section] else config[_cloudflare_section]["api_token"]
 
 external_ip = getExternalIP()
 
-if _last_ip != "":
-    print(f"Last IP:  {_last_ip}")
-
+print(f"Last IP:  {_last_ip}")
 print(f"My IP is: {external_ip}")
 
-if external_ip != _last_ip:
+if external_ip != _last_ip and external_ip != "":
     # First log any changes to IP into a separate log file
     logNewIP(external_ip)
 
     # Get list of DNS records that have to be updated
-    records = listDNSRecords(_api_token, _zone_id)
+    if _cloudflare_api_token != "" and _cloudflare_zone_id != "":
+        print("Cloudflare details found, updating DNS records...")
+        records = Cloudflare_ListDNSRecords(_cloudflare_api_token, _cloudflare_zone_id)
 
-    # Iterate over each one and ignore 192.168.0.0/16
-    for dns_record in records:
-        # Ignore private range
-        if dns_record["content"][:8] == "192.168.":
-            continue
+        # Iterate over each one and ignore 192.168.0.0/16
+        for dns_record in records:
+            if dns_record["content"][:8] == "192.168.":
+                continue
+            
+            # Update each DNS record only if the IP for the
+            # DNS is old OR we don't have record of old IP
+            # AND the IP needs to be updated
 
-        # Update each DNS record
-        updateDNSRecord(_api_token, _zone_id, dns_record, external_ip)
+            # This prevents unnecesary updates to DNS if it
+            # was already updated to new IP
+            if (dns_record["content"] == _last_ip or _last_ip == "") and dns_record["content"] != external_ip:
+                Cloudflare_UpdateDNSRecord(_cloudflare_api_token, _cloudflare_zone_id, dns_record, external_ip)
+
+        print("All Cloudflare DNS records up to date!")
 
 # Log the time we completed this task
-config[_config_section]["last_ip"] = external_ip
+config[_config_section]["ip"] = external_ip
 config[_config_section]["timestamp"] = _timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
 with open(_config_file_path, "w") as config_file:
