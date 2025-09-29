@@ -208,3 +208,4 @@ __marimo__/
 
 # Ignore the config file container confidential info!
 config.ini
+ip-log.txt
